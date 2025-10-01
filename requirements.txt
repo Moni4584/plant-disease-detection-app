@@ -1,3 +1,4 @@
+gdown
 streamlit
 tensorflow
 numpy
@@ -8,4 +9,6 @@ pillow
 opencv-python
 seaborn
 flask
-gdown
+flask-cors
+gunicorn
+requests

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, url_for
+from flask import Flask, render_template, request, redirect, send_from_directory
 import numpy as np
 import json
 import uuid
@@ -6,30 +6,37 @@ import os
 import gdown
 import tensorflow as tf
 
+# ==========================
+# Flask app
+# ==========================
 app = Flask(__name__)
 
 # ==========================
-# 1. Download model if not exists
+# 1. Ensure model is available
 # ==========================
-model_path = "models/plant_disease_recog_model_pwp.keras"
-model_file_id = "1_5G3Cz0WQtZeTxzsq5lrTUfEnNy78WeY"   # Google Drive model ID
+MODEL_DIR = "models"
+MODEL_FILE = "plant_disease_recog_model_pwp.keras"
+MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
+MODEL_FILE_ID = "1_5G3Cz0WQtZeTxzsq5lrTUfEnNy78WeY"  # Replace with your Google Drive file ID
 
-if not os.path.exists(model_path):
+if not os.path.exists(MODEL_PATH):
     print("Downloading model from Google Drive...")
-    os.makedirs("models", exist_ok=True)
-    gdown.download(f"https://drive.google.com/uc?id={model_file_id}", model_path, quiet=False)
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    gdown.download(f"https://drive.google.com/uc?id={MODEL_FILE_ID}", MODEL_PATH, quiet=False)
 
 # ==========================
-# 2. Load model + JSON
+# 2. Load Keras model
 # ==========================
-model = tf.keras.models.load_model(model_path)
+model = tf.keras.models.load_model(MODEL_PATH)
 
-# JSON is inside your repo (GitHub-safe)
+# ==========================
+# 3. Load JSON (local in repo)
+# ==========================
 with open("plant_disease.json", 'r') as file:
     plant_disease = json.load(file)
 
 # ==========================
-# 3. Flask Routes
+# 4. Flask Routes
 # ==========================
 @app.route('/uploadimages/<path:filename>')
 def uploaded_images(filename):
@@ -39,28 +46,40 @@ def uploaded_images(filename):
 def home():
     return render_template('home.html')
 
+# ==========================
+# 5. Helper functions
+# ==========================
 def extract_features(image):
     image = tf.keras.utils.load_img(image, target_size=(160,160))
     feature = tf.keras.utils.img_to_array(image)
-    feature = np.array([feature])
+    feature = np.expand_dims(feature, axis=0)
     return feature
 
-def model_predict(image):
-    img = extract_features(image)
+def model_predict(image_path):
+    img = extract_features(image_path)
     prediction = model.predict(img)
-    prediction_label = plant_disease[str(prediction.argmax())]   # JSON keys are usually strings
+    prediction_label = plant_disease[str(prediction.argmax())]  # JSON keys are strings
     return prediction_label
 
+# ==========================
+# 6. Upload Route
+# ==========================
 @app.route('/upload/', methods=['POST','GET'])
 def uploadimage():
     if request.method == "POST":
         image = request.files['img']
         temp_name = f"uploadimages/temp_{uuid.uuid4().hex}"
-        image.save(f'{temp_name}_{image.filename}')
-        prediction = model_predict(f'./{temp_name}_{image.filename}')
-        return render_template('home.html', result=True, imagepath=f'/{temp_name}_{image.filename}', prediction=prediction)
+        saved_path = f'{temp_name}_{image.filename}'
+        os.makedirs('uploadimages', exist_ok=True)
+        image.save(saved_path)
+        
+        prediction = model_predict(saved_path)
+        return render_template('home.html', result=True, imagepath=f'/{saved_path}', prediction=prediction)
     else:
         return redirect('/')
 
+# ==========================
+# 7. Run Flask
+# ==========================
 if __name__ == "__main__":
     app.run(debug=True)
