@@ -17,11 +17,14 @@ app = Flask(__name__)
 MODEL_DIR = "models"
 MODEL_FILE = "plant_disease_recog_model_pwp.keras"
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
-MODEL_FILE_ID = "1_5G3Cz0WQtZeTxzsq5lrTUfEnNy78WeY"  # Replace with your Google Drive file ID
+MODEL_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"  # Replace with your Google Drive file ID
 
+# Create models directory if not exists
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Download model if it does not exist
 if not os.path.exists(MODEL_PATH):
     print("Downloading model from Google Drive...")
-    os.makedirs(MODEL_DIR, exist_ok=True)
     gdown.download(f"https://drive.google.com/uc?id={MODEL_FILE_ID}", MODEL_PATH, quiet=False)
 
 # ==========================
@@ -40,7 +43,7 @@ with open("plant_disease.json", 'r') as file:
 # ==========================
 @app.route('/uploadimages/<path:filename>')
 def uploaded_images(filename):
-    return send_from_directory('./uploadimages', filename)
+    return send_from_directory('uploadimages', filename)
 
 @app.route('/', methods=['GET'])
 def home():
@@ -49,30 +52,35 @@ def home():
 # ==========================
 # 5. Helper functions
 # ==========================
-def extract_features(image):
-    image = tf.keras.utils.load_img(image, target_size=(160,160))
+def extract_features(image_path):
+    """Load image and convert to array for prediction."""
+    image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
     feature = tf.keras.utils.img_to_array(image)
     feature = np.expand_dims(feature, axis=0)
     return feature
 
 def model_predict(image_path):
+    """Predict plant disease from image."""
     img = extract_features(image_path)
     prediction = model.predict(img)
-    prediction_label = plant_disease[str(prediction.argmax())]  # JSON keys are strings
+    # JSON keys must be strings like "0": "Apple___Apple_scab"
+    prediction_label = plant_disease[str(prediction.argmax())]
     return prediction_label
 
 # ==========================
 # 6. Upload Route
 # ==========================
-@app.route('/upload/', methods=['POST','GET'])
+@app.route('/upload/', methods=['POST', 'GET'])
 def uploadimage():
     if request.method == "POST":
+        # Ensure upload folder exists
+        os.makedirs('uploadimages', exist_ok=True)
+
         image = request.files['img']
         temp_name = f"uploadimages/temp_{uuid.uuid4().hex}"
         saved_path = f'{temp_name}_{image.filename}'
-        os.makedirs('uploadimages', exist_ok=True)
         image.save(saved_path)
-        
+
         prediction = model_predict(saved_path)
         return render_template('home.html', result=True, imagepath=f'/{saved_path}', prediction=prediction)
     else:
