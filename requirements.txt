@@ -8,4 +8,4 @@ pillow
 opencv-python
 seaborn
 flask
-
+gdown
