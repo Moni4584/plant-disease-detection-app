@@ -1,0 +1,90 @@
+from flask import Flask, render_template, request, redirect, send_from_directory
+import numpy as np
+import json
+import uuid
+import os
+import tensorflow as tf
+
+# ==========================
+# Flask app
+# ==========================
+app = Flask(__name__)
+
+# ==========================
+# 1. Paths
+# ==========================
+MODEL_DIR = "models"
+MODEL_FILE = "plant_disease_recog_model_pwp.keras"
+MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
+
+JSON_FILE = "plant_disease.json"
+
+# ==========================
+# 2. Load Keras model
+# ==========================
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(f"Model not found at {MODEL_PATH}. Please add the model to the models/ folder.")
+
+model = tf.keras.models.load_model(MODEL_PATH)
+
+# ==========================
+# 3. Load JSON (local in repo)
+# ==========================
+if not os.path.exists(JSON_FILE):
+    raise FileNotFoundError(f"JSON file not found: {JSON_FILE}")
+
+with open(JSON_FILE, 'r') as file:
+    plant_disease = json.load(file)
+
+# ==========================
+# 4. Flask Routes
+# ==========================
+@app.route('/uploadimages/<path:filename>')
+def uploaded_images(filename):
+    return send_from_directory('./uploadimages', filename)
+
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('home.html')
+
+# ==========================
+# 5. Helper functions
+# ==========================
+def extract_features(image_path):
+    # Load image and convert to array
+    image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
+    feature = tf.keras.utils.img_to_array(image)
+    feature = np.expand_dims(feature, axis=0)  # Add batch dimension
+    return feature
+
+def model_predict(image_path):
+    img = extract_features(image_path)
+    prediction = model.predict(img)
+    prediction_label = plant_disease[str(prediction.argmax())]  # JSON keys are strings
+    return prediction_label
+
+# ==========================
+# 6. Upload Route
+# ==========================
+@app.route('/upload/', methods=['POST', 'GET'])
+def uploadimage():
+    if request.method == "POST":
+        image = request.files['img']
+        # Save uploaded image
+        os.makedirs('uploadimages', exist_ok=True)
+        temp_name = f"uploadimages/temp_{uuid.uuid4().hex}_{image.filename}"
+        image.save(temp_name)
+        
+        # Make prediction
+        prediction = model_predict(temp_name)
+        return render_template('home.html', result=True, imagepath=f'/{temp_name}', prediction=prediction)
+    else:
+        return redirect('/')
+
+# ==========================
+# 7. Run Flask
+# ==========================
+if __name__ == "__main__":
+    app.run(debug=True)
+
+  
