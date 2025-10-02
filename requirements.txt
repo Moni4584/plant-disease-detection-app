@@ -1,8 +1,8 @@
 gdown
 streamlit
-tensorflow==2.12.0
-keras==2.12.0
-numpy==1.23.5
+tensorflow
+keras
+numpy
 pandas
 matplotlib
 scikit-learn

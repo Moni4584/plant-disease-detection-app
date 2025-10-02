@@ -54,10 +54,13 @@ def home():
 # ==========================
 def extract_features(image_path):
     """Load image and convert to array for prediction."""
-    # Load as grayscale and correct size for model
-    image = tf.keras.utils.load_img(image_path, target_size=(161, 161), color_mode='grayscale')
+    # Load and ensure RGB
+    image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
     feature = tf.keras.utils.img_to_array(image)
-    feature = np.expand_dims(feature, axis=0)
+    feature = np.expand_dims(feature, axis=-1)
     feature = feature / 255.0  # normalize to [0,1]
     return feature
 
@@ -93,8 +96,3 @@ def uploadimage():
 # ==========================
 if __name__ == "__main__":
     app.run(debug=True)
-
-# ==========================
-# 8. Install Requirements
-# ==========================
-os.system('pip install -r requirements.txt')
