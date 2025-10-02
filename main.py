@@ -52,14 +52,18 @@ def home():
 # ==========================
 # 5. Helper functions
 # ==========================
-def extract_features(image_path):
+ddef extract_features(image_path):
     """Load image and convert to array for prediction."""
-    # ✅ Force RGB so input shape is always (160,160,3)
-    image = tf.keras.utils.load_img(image_path, target_size=(161, 161), color_mode="rgb")
+    # Load and ensure RGB
+    image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
     feature = tf.keras.utils.img_to_array(image)
     feature = np.expand_dims(feature, axis=0)
     feature = feature / 255.0  # normalize to [0,1]
     return feature
+
 
 def model_predict(image_path):
     """Predict plant disease from image."""
