@@ -52,7 +52,7 @@ def home():
 # ==========================
 # 5. Helper functions
 # ==========================
-ddef extract_features(image_path):
+def extract_features(image_path):
     """Load image and convert to array for prediction."""
     # Load and ensure RGB
     image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
