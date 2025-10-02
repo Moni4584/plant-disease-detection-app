@@ -17,9 +17,9 @@ app = Flask(__name__)
 MODEL_DIR = "models"
 MODEL_FILE = "plant_disease_recog_model_pwp.keras"
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
-MODEL_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"  # Google Drive file ID
+MODEL_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"  # Replace with your Google Drive file ID
 
-# Create models directory if it doesn't exist
+# Create models directory if not exists
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Download model if it does not exist
@@ -54,20 +54,16 @@ def home():
 # ==========================
 def extract_features(image_path):
     """Load image and convert to array for prediction."""
-    # Load image and ensure RGB
+    # Load and ensure RGB
     image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
     if image.mode != 'RGB':
         image = image.convert('RGB')
-
-    # Convert to array
-    feature = tf.keras.utils.img_to_array(image)  # shape: (160, 160, 3)
     
-    # Add batch dimension
-    feature = np.expand_dims(feature, axis=0)    # shape: (1, 160, 160, 3)
-    
-    # Normalize
-    feature = feature / 255.0
+    feature = tf.keras.utils.img_to_array(image)
+    feature = np.expand_dims(feature, axis=0)
+    feature = feature / 255.0  # normalize to [0,1]
     return feature
+
 
 def model_predict(image_path):
     """Predict plant disease from image."""
@@ -83,22 +79,14 @@ def model_predict(image_path):
 def uploadimage():
     if request.method == "POST":
         # Ensure upload folder exists
-        upload_dir = 'uploadimages'
-        os.makedirs(upload_dir, exist_ok=True)
+        os.makedirs('uploadimages', exist_ok=True)
 
         image = request.files['img']
-        temp_name = f"{uuid.uuid4().hex}_{image.filename}"
-        saved_path = os.path.join(upload_dir, temp_name)
+        temp_name = f"uploadimages/temp_{uuid.uuid4().hex}"
+        saved_path = f'{temp_name}_{image.filename}'
         image.save(saved_path)
 
-        try:
-            # Make prediction
-            prediction = model_predict(saved_path)
-        finally:
-            # Delete the uploaded image to save space
-            if os.path.exists(saved_path):
-                os.remove(saved_path)
-
+        prediction = model_predict(saved_path)
         return render_template('home.html', result=True, imagepath=f'/{saved_path}', prediction=prediction)
     else:
         return redirect('/')
