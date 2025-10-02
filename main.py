@@ -1,3 +1,8 @@
+# ==========================
+# main.py
+# Plant Disease Detection App
+# ==========================
+
 from flask import Flask, render_template, request, redirect, send_from_directory
 import numpy as np
 import json
@@ -7,39 +12,40 @@ import gdown
 import tensorflow as tf
 
 # ==========================
-# Flask app
+# 1. Flask app
 # ==========================
 app = Flask(__name__)
 
 # ==========================
-# 1. Ensure model is available
+# 2. Ensure model is available
 # ==========================
 MODEL_DIR = "models"
 MODEL_FILE = "plant_disease_recog_model_pwp.keras"
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
 MODEL_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"  # Replace with your Google Drive file ID
 
-# Create models directory if not exists
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Download model if it does not exist
 if not os.path.exists(MODEL_PATH):
     print("Downloading model from Google Drive...")
-    gdown.download(f"https://drive.google.com/uc?id={MODEL_FILE_ID}", MODEL_PATH, quiet=False)
+    gdown.download(
+        f"https://drive.google.com/uc?id={MODEL_FILE_ID}", MODEL_PATH, quiet=False
+    )
 
 # ==========================
-# 2. Load Keras model
+# 3. Load Keras model
 # ==========================
 model = tf.keras.models.load_model(MODEL_PATH)
 
 # ==========================
-# 3. Load JSON (local in repo)
+# 4. Load plant disease JSON
 # ==========================
 with open("plant_disease.json", 'r') as file:
     plant_disease = json.load(file)
 
 # ==========================
-# 4. Flask Routes
+# 5. Flask routes
 # ==========================
 @app.route('/uploadimages/<path:filename>')
 def uploaded_images(filename):
@@ -50,13 +56,15 @@ def home():
     return render_template('home.html')
 
 # ==========================
-# 5. Helper functions
+# 6. Helper functions
 # ==========================
 def extract_features(image_path):
-    """Load image and convert to array for prediction."""
-    # Force RGB mode when loading to ensure 3 channels
-    image = tf.keras.utils.load_img(image_path, target_size=(161, 161), color_mode='rgb')
-    
+    """
+    Load image, ensure RGB, resize, normalize for model prediction.
+    """
+    image = tf.keras.utils.load_img(
+        image_path, target_size=(161, 161), color_mode='rgb'
+    )
     feature = tf.keras.utils.img_to_array(image)
     feature = np.expand_dims(feature, axis=0)
     feature = feature / 255.0  # normalize to [0,1]
@@ -70,12 +78,11 @@ def model_predict(image_path):
     return prediction_label
 
 # ==========================
-# 6. Upload Route
+# 7. Upload route
 # ==========================
 @app.route('/upload/', methods=['POST', 'GET'])
 def uploadimage():
     if request.method == "POST":
-        # Ensure upload folder exists
         os.makedirs('uploadimages', exist_ok=True)
 
         image = request.files['img']
@@ -84,12 +91,14 @@ def uploadimage():
         image.save(saved_path)
 
         prediction = model_predict(saved_path)
-        return render_template('home.html', result=True, imagepath=f'/{saved_path}', prediction=prediction)
+        return render_template(
+            'home.html', result=True, imagepath=f'/{saved_path}', prediction=prediction
+        )
     else:
         return redirect('/')
 
 # ==========================
-# 7. Run Flask
+# 8. Run Flask
 # ==========================
 if __name__ == "__main__":
     app.run(debug=True)
