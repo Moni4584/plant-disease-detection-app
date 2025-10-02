@@ -26,7 +26,7 @@ MODEL_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"  # Replace with your Google 
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# Download model if it does not exist
+# Download model if not exists
 if not os.path.exists(MODEL_PATH):
     print("Downloading model from Google Drive...")
     gdown.download(
@@ -60,21 +60,22 @@ def home():
 # ==========================
 def extract_features(image_path):
     """
-    Load image, ensure RGB, resize, normalize for model prediction.
+    Load image, force RGB, resize to 160x160, normalize.
     """
     image = tf.keras.utils.load_img(
-        image_path, target_size=(161, 161), color_mode='rgb'
+        image_path, target_size=(160, 160), color_mode="rgb"
     )
     feature = tf.keras.utils.img_to_array(image)
     feature = np.expand_dims(feature, axis=0)
-    feature = feature / 255.0  # normalize to [0,1]
+    feature = feature / 255.0  # normalize
     return feature
 
 def model_predict(image_path):
     """Predict plant disease from image."""
     img = extract_features(image_path)
     prediction = model.predict(img)
-    prediction_label = plant_disease[str(prediction.argmax())]  # JSON keys must be strings
+    predicted_idx = int(np.argmax(prediction))
+    prediction_label = plant_disease[str(predicted_idx)]  # JSON keys are strings
     return prediction_label
 
 # ==========================
