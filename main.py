@@ -54,21 +54,12 @@ def home():
 # ==========================
 def extract_features(image_path):
     """Load image and convert to array for prediction."""
-    # Load image with target size matching your model input
-    image = tf.keras.utils.load_img(image_path, target_size=(161, 161))  
-
-    # Ensure image is RGB (3 channels)
-    if image.mode != 'RGB':
-        image = image.convert('RGB')  
-
-    # Convert to array
-    feature = tf.keras.utils.img_to_array(image)  
-
-    # Add batch dimension
-    feature = np.expand_dims(feature, axis=0)  
-
-    # Normalize to [0,1]
-    feature = feature / 255.0  
+    # Force RGB mode when loading to ensure 3 channels
+    image = tf.keras.utils.load_img(image_path, target_size=(161, 161), color_mode='rgb')
+    
+    feature = tf.keras.utils.img_to_array(image)
+    feature = np.expand_dims(feature, axis=0)
+    feature = feature / 255.0  # normalize to [0,1]
     return feature
 
 def model_predict(image_path):
