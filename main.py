@@ -54,16 +54,22 @@ def home():
 # ==========================
 def extract_features(image_path):
     """Load image and convert to array for prediction."""
-    # Load and ensure RGB
-    image = tf.keras.utils.load_img(image_path, target_size=(160, 160))
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-    
-    feature = tf.keras.utils.img_to_array(image)
-    feature = np.expand_dims(feature, axis=0)
-    feature = feature / 255.0  # normalize to [0,1]
-    return feature
+    # Load image with target size matching your model input
+    image = tf.keras.utils.load_img(image_path, target_size=(161, 161))  
 
+    # Ensure image is RGB (3 channels)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')  
+
+    # Convert to array
+    feature = tf.keras.utils.img_to_array(image)  
+
+    # Add batch dimension
+    feature = np.expand_dims(feature, axis=0)  
+
+    # Normalize to [0,1]
+    feature = feature / 255.0  
+    return feature
 
 def model_predict(image_path):
     """Predict plant disease from image."""
