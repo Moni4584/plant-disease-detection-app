@@ -55,7 +55,7 @@ def home():
 def extract_features(image_path):
     """Load image and convert to array for prediction."""
     # ✅ Force RGB so input shape is always (160,160,3)
-    image = tf.keras.utils.load_img(image_path, target_size=(160, 160), color_mode="rgb")
+    image = tf.keras.utils.load_img(image_path, target_size=(161, 161), color_mode="rgb")
     feature = tf.keras.utils.img_to_array(image)
     feature = np.expand_dims(feature, axis=0)
     feature = feature / 255.0  # normalize to [0,1]
