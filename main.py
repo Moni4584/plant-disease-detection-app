@@ -1,105 +1,106 @@
-# ==========================
-# main.py
-# Plant Disease Detection App
-# ==========================
-
-from flask import Flask, render_template, request, redirect, send_from_directory
-import numpy as np
-import json
-import uuid
-import os
-import gdown
+import streamlit as st
 import tensorflow as tf
+import numpy as np
+from PIL import Image
 
-# ==========================
-# 1. Flask app
-# ==========================
-app = Flask(__name__)
+# Path to your quantized TFLite model
+TFLITE_MODEL_PATH = "plant_disease_model_quant.tflite"
 
-# ==========================
-# 2. Ensure model is available
-# ==========================
-MODEL_DIR = "models"
-MODEL_FILE = "plant_disease_recog_model_pwp.keras"
-MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
-MODEL_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"  # Replace with your Google Drive file ID
+# Load TFLite model
+interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
+interpreter.allocate_tensors()
 
-os.makedirs(MODEL_DIR, exist_ok=True)
+# Get input and output details
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
-# Download model if not exists
-if not os.path.exists(MODEL_PATH):
-    print("Downloading model from Google Drive...")
-    gdown.download(
-        f"https://drive.google.com/uc?id={MODEL_FILE_ID}", MODEL_PATH, quiet=False
-    )
+# Get model input shape
+input_shape = input_details[0]['shape'][1:3]  # (height, width)
 
-# ==========================
-# 3. Load Keras model
-# ==========================
-model = tf.keras.models.load_model(MODEL_PATH)
+# ✅ Correct class names (your list)
+CLASS_NAMES = [
+    'Apple___Apple_scab',
+    'Apple___Black_rot',
+    'Apple___Cedar_apple_rust',
+    'Apple___healthy',
+    'Background_without_leaves',
+    'Blueberry___healthy',
+    'Cherry___Powdery_mildew',
+    'Cherry___healthy',
+    'Corn___Cercospora_leaf_spot Gray_leaf_spot',
+    'Corn___Common_rust',
+    'Corn___Northern_Leaf_Blight',
+    'Corn___healthy',
+    'Grape___Black_rot',
+    'Grape___Esca_(Black_Measles)',
+    'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)',
+    'Grape___healthy',
+    'Orange___Haunglongbing_(Citrus_greening)',
+    'Peach___Bacterial_spot',
+    'Peach___healthy',
+    'Pepper,_bell___Bacterial_spot',
+    'Pepper,_bell___healthy',
+    'Potato___Early_blight',
+    'Potato___Late_blight',
+    'Potato___healthy',
+    'Raspberry___healthy',
+    'Soybean___healthy',
+    'Squash___Powdery_mildew',
+    'Strawberry___Leaf_scorch',
+    'Strawberry___healthy',
+    'Tomato___Bacterial_spot',
+    'Tomato___Early_blight',
+    'Tomato___Late_blight',
+    'Tomato___Leaf_Mold',
+    'Tomato___Septoria_leaf_spot',
+    'Tomato___Spider_mites Two-spotted_spider_mite',
+    'Tomato___Target_Spot',
+    'Tomato___Tomato_Yellow_Leaf_Curl_Virus',
+    'Tomato___Tomato_mosaic_virus',
+    'Tomato___healthy'
+]
 
-# ==========================
-# 4. Load plant disease JSON
-# ==========================
-with open("plant_disease.json", 'r') as file:
-    plant_disease = json.load(file)
+# Function to preprocess image
+def preprocess_image(image: Image.Image):
+    image = image.resize(input_shape)  # resize to model's expected input
+    image = np.array(image, dtype=np.float32)
+    if image.shape[-1] == 4:  # RGBA → RGB
+        image = image[..., :3]
+    image = np.expand_dims(image, axis=0)  # add batch dimension
+    image = image / 255.0  # normalize
+    return image
 
-# ==========================
-# 5. Flask routes
-# ==========================
-@app.route('/uploadimages/<path:filename>')
-def uploaded_images(filename):
-    return send_from_directory('uploadimages', filename)
+# Prediction function
+def predict(image: Image.Image):
+    input_data = preprocess_image(image)
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    prediction = np.squeeze(output_data)
+    class_index = np.argmax(prediction)
+    confidence = prediction[class_index] * 100
+    return CLASS_NAMES[class_index], confidence, prediction
 
-@app.route('/', methods=['GET'])
-def home():
-    return render_template('home.html')
+# ---------------- Streamlit UI ----------------
+st.set_page_config(page_title="🌱 Plant Disease Detection", layout="centered")
+st.title("🌿 Plant Disease Detection (TFLite)")
+st.write("Upload a plant leaf image and the model will predict the disease.")
 
-# ==========================
-# 6. Helper functions
-# ==========================
-def extract_features(image_path):
-    """
-    Load image, force RGB, resize to 160x160, normalize.
-    """
-    image = tf.keras.utils.load_img(
-        image_path, target_size=(160, 160), color_mode="rgb"
-    )
-    feature = tf.keras.utils.img_to_array(image)
-    feature = np.expand_dims(feature, axis=0)
-    feature = feature / 255.0  # normalize
-    return feature
+uploaded_file = st.file_uploader("Upload Leaf Image", type=["jpg", "jpeg", "png"])
 
-def model_predict(image_path):
-    """Predict plant disease from image."""
-    img = extract_features(image_path)
-    prediction = model.predict(img)
-    predicted_idx = int(np.argmax(prediction))
-    prediction_label = plant_disease[str(predicted_idx)]  # JSON keys are strings
-    return prediction_label
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Leaf", use_column_width=True)
 
-# ==========================
-# 7. Upload route
-# ==========================
-@app.route('/upload/', methods=['POST', 'GET'])
-def uploadimage():
-    if request.method == "POST":
-        os.makedirs('uploadimages', exist_ok=True)
+    # Run prediction
+    label, confidence, prediction = predict(image)
 
-        image = request.files['img']
-        temp_name = f"uploadimages/temp_{uuid.uuid4().hex}"
-        saved_path = f'{temp_name}_{image.filename}'
-        image.save(saved_path)
+    st.success(f"✅ Predicted Disease: **{label}**")
+    st.write(f"Confidence: **{confidence:.2f}%**")
 
-        prediction = model_predict(saved_path)
-        return render_template(
-            'home.html', result=True, imagepath=f'/{saved_path}', prediction=prediction
-        )
-    else:
-        return redirect('/')
-
-# ==========================
-# 8. Run Flask
-# ==========================
-if __name__ == "__main__":
-    app.run(debug=True)
+    # Show top 5 predictions
+    top5_idx = np.argsort(prediction)[-5:][::-1]
+    st.subheader("🔎 Top 5 Predictions")
+    for i in top5_idx:
+        st.progress(float(prediction[i]))  # probability bar
+        st.write(f"**{CLASS_NAMES[i]}** → {prediction[i]*100:.2f}%")
