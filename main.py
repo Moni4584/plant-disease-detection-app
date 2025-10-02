@@ -54,20 +54,18 @@ def home():
 # ==========================
 def extract_features(image_path):
     """Load image and convert to array for prediction."""
-    from PIL import Image
-    img = Image.open(image_path).convert("RGB")   # 🔴 force 3 channels
-    img = img.resize((160, 160))                  # resize same as training
-    feature = np.array(img, dtype="float32")
-    feature = np.expand_dims(feature, axis=0)     # add batch dimension
+    # ✅ Force RGB so input shape is always (160,160,3)
+    image = tf.keras.utils.load_img(image_path, target_size=(160, 160), color_mode="rgb")
+    feature = tf.keras.utils.img_to_array(image)
+    feature = np.expand_dims(feature, axis=0)
+    feature = feature / 255.0  # normalize to [0,1]
     return feature
-
 
 def model_predict(image_path):
     """Predict plant disease from image."""
     img = extract_features(image_path)
     prediction = model.predict(img)
-    # JSON keys must be strings like "0": "Apple___Apple_scab"
-    prediction_label = plant_disease[str(prediction.argmax())]
+    prediction_label = plant_disease[str(prediction.argmax())]  # JSON keys must be strings
     return prediction_label
 
 # ==========================
