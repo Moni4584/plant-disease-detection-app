@@ -1,126 +1,98 @@
-import streamlit as st
+from flask import Flask, render_template, request, redirect, send_from_directory
 import numpy as np
-from PIL import Image
+import json
+import uuid
 import tensorflow as tf
 import os
-import gdown
+import requests
 
 # ==========================
-# Constants
+# CONFIG
 # ==========================
-MODEL_URL = "https://drive.google.com/file/d/1YdaVH_sANHDPDLnXN8Xi76raEQWi3PzM/view?usp=drive_link"
 MODEL_DIR = "models"
-MODEL_FILENAME = "plant_disease_model_quant.tflite"
-MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILENAME)
-IMG_SIZE = (160, 160)  # Make sure this matches your model input size
+MODEL_FILE = "plant_disease_recog_model_pwp.keras"
+MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
+
+# GitHub release download link
+MODEL_URL = "https://github.com/Moni4584/plant/releases/download/v1.0.0/plant_disease_recog_model_pwp.keras"
+
+# Make sure models folder exists
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ==========================
-# Ensure model exists
+# DOWNLOAD MODEL IF NOT PRESENT
 # ==========================
-if not os.path.exists(MODEL_DIR):
-    os.makedirs(MODEL_DIR)
-
-if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1024 * 1024:
-    st.info("Downloading TFLite model...")
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-
-# ==========================
-# Load TFLite model
-# ==========================
-try:
-    interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
-    interpreter.allocate_tensors()
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    st.success("Model loaded successfully!")
-except Exception as e:
-    st.error(f"Failed to load TFLite model: {e}")
-    st.stop()
+if not os.path.exists(MODEL_PATH):
+    print("📥 Downloading model from GitHub Releases...")
+    response = requests.get(MODEL_URL, stream=True)
+    with open(MODEL_PATH, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    print("✅ Model downloaded successfully!")
 
 # ==========================
-# Streamlit App UI
+# LOAD MODEL
 # ==========================
-st.title("🌿 Plant Disease Detection App")
-st.write("Upload a leaf image and the model will predict the disease.")
-
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+app = Flask(__name__)
+model = tf.keras.models.load_model(MODEL_PATH)
 
 # ==========================
-# Class labels
+# LABELS
 # ==========================
-CLASS_LABELS = [
-    'Apple___Apple_scab',
-    'Apple___Black_rot',
-    'Apple___Cedar_apple_rust',
-    'Apple___healthy',
-    'Background_without_leaves',
-    'Blueberry___healthy',
-    'Cherry___Powdery_mildew',
-    'Cherry___healthy',
-    'Corn___Cercospora_leaf_spot Gray_leaf_spot',
-    'Corn___Common_rust',
-    'Corn___Northern_Leaf_Blight',
-    'Corn___healthy',
-    'Grape___Black_rot',
-    'Grape___Esca_(Black_Measles)',
-    'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)',
-    'Grape___healthy',
-    'Orange___Haunglongbing_(Citrus_greening)',
-    'Peach___Bacterial_spot',
-    'Peach___healthy',
-    'Pepper,_bell___Bacterial_spot',
-    'Pepper,_bell___healthy',
-    'Potato___Early_blight',
-    'Potato___Late_blight',
-    'Potato___healthy',
-    'Raspberry___healthy',
-    'Soybean___healthy',
-    'Squash___Powdery_mildew',
-    'Strawberry___Leaf_scorch',
-    'Strawberry___healthy',
-    'Tomato___Bacterial_spot',
-    'Tomato___Early_blight',
-    'Tomato___Late_blight',
-    'Tomato___Leaf_Mold',
-    'Tomato___Septoria_leaf_spot',
-    'Tomato___Spider_mites Two-spotted_spider_mite',
-    'Tomato___Target_Spot',
-    'Tomato___Tomato_Yellow_Leaf_Curl_Virus',
-    'Tomato___Tomato_mosaic_virus',
-    'Tomato___healthy'
+label = [
+ 'Apple___Apple_scab','Apple___Black_rot','Apple___Cedar_apple_rust','Apple___healthy',
+ 'Background_without_leaves','Blueberry___healthy','Cherry___Powdery_mildew','Cherry___healthy',
+ 'Corn___Cercospora_leaf_spot Gray_leaf_spot','Corn___Common_rust','Corn___Northern_Leaf_Blight','Corn___healthy',
+ 'Grape___Black_rot','Grape___Esca_(Black_Measles)','Grape___Leaf_blight_(Isariopsis_Leaf_Spot)','Grape___healthy',
+ 'Orange___Haunglongbing_(Citrus_greening)','Peach___Bacterial_spot','Peach___healthy',
+ 'Pepper,_bell___Bacterial_spot','Pepper,_bell___healthy','Potato___Early_blight','Potato___Late_blight','Potato___healthy',
+ 'Raspberry___healthy','Soybean___healthy','Squash___Powdery_mildew','Strawberry___Leaf_scorch','Strawberry___healthy',
+ 'Tomato___Bacterial_spot','Tomato___Early_blight','Tomato___Late_blight','Tomato___Leaf_Mold',
+ 'Tomato___Septoria_leaf_spot','Tomato___Spider_mites Two-spotted_spider_mite','Tomato___Target_Spot',
+ 'Tomato___Tomato_Yellow_Leaf_Curl_Virus','Tomato___Tomato_mosaic_virus','Tomato___healthy'
 ]
 
+with open("plant_disease.json", 'r') as file:
+    plant_disease = json.load(file)
+
 # ==========================
-# Image prediction
+# ROUTES
 # ==========================
-if uploaded_file:
-    image = Image.open(uploaded_file)
+@app.route('/uploadimages/<path:filename>')
+def uploaded_images(filename):
+    return send_from_directory('./uploadimages', filename)
 
-    # Convert grayscale to RGB if needed
-    if image.mode != "RGB":
-        image = image.convert("RGB")
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('home.html')
 
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+def extract_features(image):
+    image = tf.keras.utils.load_img(image, target_size=(160, 160))
+    feature = tf.keras.utils.img_to_array(image)
+    feature = np.array([feature])
+    return feature
 
-    # Preprocess image
-    img = image.resize(IMG_SIZE)
-    img_array = np.array(img, dtype=np.float32) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)  # shape: (1, 160, 160, 3)
+def model_predict(image):
+    img = extract_features(image)
+    prediction = model.predict(img)
+    prediction_label = plant_disease[prediction.argmax()]
+    return prediction_label
 
-    # Run inference
-    interpreter.set_tensor(input_details[0]['index'], img_array)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])[0]
+@app.route('/upload/', methods=['POST','GET'])
+def uploadimage():
+    if request.method == "POST":
+        image = request.files['img']
+        os.makedirs("uploadimages", exist_ok=True)
+        temp_name = f"uploadimages/temp_{uuid.uuid4().hex}"
+        save_path = f'{temp_name}_{image.filename}'
+        image.save(save_path)
+        prediction = model_predict(save_path)
+        return render_template('home.html', result=True, imagepath=f'/{save_path}', prediction=prediction)
+    else:
+        return redirect('/')
 
-    # Get predicted class and confidence
-    pred_index = np.argmax(output_data)
-    confidence = float(output_data[pred_index])
-
-    st.write(f"**Predicted Class:** {CLASS_LABELS[pred_index]}")
-    st.write(f"**Confidence:** {confidence*100:.2f}%")
-
-    # Display top 3 predictions
-    top_indices = output_data.argsort()[-3:][::-1]
-    st.write("### Top 3 Predictions:")
-    for i in top_indices:
-        st.write(f"{CLASS_LABELS[i]}: {output_data[i]*100:.2f}%")
+# ==========================
+# RUN
+# ==========================
+if __name__ == "__main__":
+    app.run(debug=True)
