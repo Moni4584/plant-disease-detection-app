@@ -16,11 +16,11 @@ MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
 # GitHub release download link
 MODEL_URL = "https://github.com/Moni4584/plant/releases/download/v1.0.0/plant_disease_recog_model_pwp.keras"
 
-# Make sure models folder exists
+# Ensure models folder exists
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ==========================
-# DOWNLOAD MODEL IF NOT PRESENT
+# DOWNLOAD MODEL IF MISSING
 # ==========================
 if not os.path.exists(MODEL_PATH):
     print("📥 Downloading model from GitHub Releases...")
@@ -66,10 +66,15 @@ def uploaded_images(filename):
 def home():
     return render_template('home.html')
 
+# ==========================
+# IMAGE PREPROCESSING
+# ==========================
 def extract_features(image):
-    image = tf.keras.utils.load_img(image, target_size=(160, 160))
+    # Load image as RGB (3 channels) and resize to 160x160
+    image = tf.keras.utils.load_img(image, target_size=(160,160), color_mode='rgb')
     feature = tf.keras.utils.img_to_array(image)
-    feature = np.array([feature])
+    feature = np.expand_dims(feature, axis=0)  # Shape: (1,160,160,3)
+    feature = feature / 255.0                  # Normalize pixel values
     return feature
 
 def model_predict(image):
@@ -78,6 +83,9 @@ def model_predict(image):
     prediction_label = plant_disease[prediction.argmax()]
     return prediction_label
 
+# ==========================
+# UPLOAD ROUTE
+# ==========================
 @app.route('/upload/', methods=['POST','GET'])
 def uploadimage():
     if request.method == "POST":
@@ -92,7 +100,7 @@ def uploadimage():
         return redirect('/')
 
 # ==========================
-# RUN
+# RUN APP
 # ==========================
 if __name__ == "__main__":
     app.run(debug=True)
