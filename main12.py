@@ -70,9 +70,11 @@ def home():
 # IMAGE PREPROCESSING
 # ==========================
 def extract_features(image):
-    image = tf.keras.utils.load_img(image,target_size=(160,160))
+    # Ensure image is loaded as RGB (3 channels)
+    image = tf.keras.utils.load_img(image, target_size=(160,160), color_mode='rgb')
     feature = tf.keras.utils.img_to_array(image)
-    feature = np.array([feature])
+    feature = np.array([feature])       # Shape: (1, 160, 160, 3)
+    feature = feature / 255.0           # Optional: normalize
     return feature
 
 
