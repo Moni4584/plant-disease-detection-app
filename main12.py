@@ -6,22 +6,20 @@ import tensorflow as tf
 import os
 import requests
 
+app = Flask(__name__)
+
 # ==========================
-# CONFIG
+# MODEL SETUP
 # ==========================
 MODEL_DIR = "models"
-MODEL_FILE = "plant_disease_recog_model_pwp.keras"
+MODEL_FILE = "plant_disease_recog_model_pwp.h5"  # safer cross-version format
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
+MODEL_URL = "https://github.com/Moni4584/plant/releases/download/v1.0.0/plant_disease_recog_model_pwp.h5"
 
-# GitHub release download link
-MODEL_URL = "https://github.com/Moni4584/plant/releases/download/v1.0.0/plant_disease_recog_model_pwp.keras"
-
-# Ensure models folder exists
+# Ensure model folder exists
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# ==========================
-# DOWNLOAD MODEL IF MISSING
-# ==========================
+# Download model if it doesn't exist
 if not os.path.exists(MODEL_PATH):
     print("📥 Downloading model from GitHub Releases...")
     response = requests.get(MODEL_URL, stream=True)
@@ -30,10 +28,7 @@ if not os.path.exists(MODEL_PATH):
             f.write(chunk)
     print("✅ Model downloaded successfully!")
 
-# ==========================
-# LOAD MODEL
-# ==========================
-app = Flask(__name__)
+# Load the model
 model = tf.keras.models.load_model(MODEL_PATH)
 
 # ==========================
@@ -52,7 +47,8 @@ label = [
  'Tomato___Tomato_Yellow_Leaf_Curl_Virus','Tomato___Tomato_mosaic_virus','Tomato___healthy'
 ]
 
-with open("plant_disease.json", 'r') as file:
+# Load JSON mapping if exists
+with open("plant_disease.json",'r') as file:
     plant_disease = json.load(file)
 
 # ==========================
@@ -70,13 +66,12 @@ def home():
 # IMAGE PREPROCESSING
 # ==========================
 def extract_features(image):
-    # Ensure image is loaded as RGB (3 channels)
+    # Load image in RGB mode with correct size
     image = tf.keras.utils.load_img(image, target_size=(160,160), color_mode='rgb')
-    feature = tf.keras.utils.img_to_array(image)
-    feature = np.array([feature])       # Shape: (1, 160, 160, 3)
-    feature = feature / 255.0           # Optional: normalize
+    feature = tf.keras.utils.img_to_array(image)   # (160,160,3)
+    feature = np.expand_dims(feature, axis=0)      # (1,160,160,3)
+    feature = feature / 255.0                      # normalize
     return feature
-
 
 def model_predict(image):
     img = extract_features(image)
