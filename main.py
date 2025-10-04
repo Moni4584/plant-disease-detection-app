@@ -1,9 +1,9 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
-import requests
 import os
 from PIL import Image
+import gdown  # for downloading from Google Drive
 
 # ================================
 # App Configuration
@@ -19,30 +19,32 @@ MODEL_DIR = "models"
 MODEL_FILE = "plant_disease_recog_model_pwp.keras"
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
 
-GITHUB_MODEL_URL = "https://github.com/Moni4584/plant-disease-detection-app/releases/download/v.10/plant_disease_recog_model_pwp.keras"
+# Google Drive file ID
+GDRIVE_FILE_ID = "1_liYB-Lv6HraFgDxS0WtSqVXTz1bwxBY"
+GDRIVE_URL = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# Download model if not present
+# Download model from Google Drive if not present
 if not os.path.exists(MODEL_PATH):
-    with st.spinner("Downloading model from GitHub..."):
-        response = requests.get(GITHUB_MODEL_URL)
-        with open(MODEL_PATH, "wb") as f:
-            f.write(response.content)
-    st.success("Model downloaded successfully!")
+    with st.spinner("Downloading model from Google Drive..."):
+        gdown.download(GDRIVE_URL, MODEL_PATH, quiet=False)
+    st.success("✅ Model downloaded successfully!")
 
-# Load model
+# ================================
+# Load Model
+# ================================
 @st.cache_resource
 def load_model():
-    model = tf.keras.models.load_model(MODEL_PATH)
-    return model
+    try:
+        model = tf.keras.models.load_model(MODEL_PATH)
+        return model
+    except Exception as e:
+        st.error(f"⚠️ Failed to load model: {e}")
+        st.stop()
 
-try:
-    model = load_model()
-    st.success("✅ Model loaded successfully!")
-except Exception as e:
-    st.error("⚠️ Error loading model. Check the model file or format.")
-    st.stop()
+model = load_model()
+st.success("✅ Model loaded successfully!")
 
 # ================================
 # Class Labels
@@ -64,18 +66,18 @@ CLASS_NAMES = [
 ]
 
 # ================================
-# Preprocessing Function
+# Image Preprocessing
 # ================================
 def preprocess_image(image):
-    """Convert image to RGB, resize to 160x160, normalize"""
-    image = image.convert("RGB")  # ensure 3 channels
+    """Convert image to RGB, resize to 160x160, normalize, add batch dimension"""
+    image = image.convert("RGB")
     image = image.resize((160, 160))
     img_array = np.array(image) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)  # add batch dimension
+    img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
 # ================================
-# Streamlit File Uploader
+# Streamlit UI
 # ================================
 uploaded_file = st.file_uploader("Choose a plant leaf image...", type=["jpg", "jpeg", "png"])
 
@@ -85,8 +87,8 @@ if uploaded_file is not None:
 
     if st.button("🔍 Predict"):
         with st.spinner("Analyzing image..."):
-            processed = preprocess_image(image)
-            prediction = model.predict(processed)
+            processed_image = preprocess_image(image)
+            prediction = model.predict(processed_image)
             class_index = np.argmax(prediction)
             confidence = np.max(prediction)
 
